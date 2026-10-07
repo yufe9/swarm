@@ -1,0 +1,527 @@
+/* 집중포화 — 어두운 네온 톤. 색은 여기 변수에서 관리합니다. */
+:root {
+  --bg: #0A0E1A;
+  --panel: rgba(16, 22, 38, 0.94);
+  --panel-line: rgba(120, 170, 255, 0.22);
+  --text: #F2F5FA;
+  --muted: #93A2BC;
+  --accent: #35C98A;
+  --gold: #F3C96B;
+  --hp: #FF5C7A;
+  --xp: #6FD3FF;
+  --shield: #6FD3FF;
+  --prism: #C08BFF;
+  --r: 14px;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0; padding: 0;
+  width: 100%; height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Pretendard", -apple-system, BlinkMacSystemFont, "Segoe UI",
+    "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif,
+    "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji";
+  -webkit-user-select: none; user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+  touch-action: none;
+}
+
+[hidden] { display: none !important; }
+
+/* #gl 은 3D(WebGL) 캔버스, #cv 는 그 위에 얹히는 2D 캔버스입니다.
+   2D 모드에서는 #gl 이 비어 있고 #cv 가 전부 그립니다.
+   3D 모드에서는 #gl 이 씬을, #cv 가 피해 숫자·미니맵 같은 오버레이만 그립니다. */
+#gl { position: fixed; inset: 0; display: block; z-index: 0; }
+#cv { position: fixed; inset: 0; display: block; z-index: 1; }
+
+/* ── 공통 버튼 ────────────────────────────────────────────── */
+button {
+  font: inherit;
+  color: var(--text);
+  background: rgba(30, 42, 68, 0.9);
+  border: 1px solid var(--panel-line);
+  border-radius: 10px;
+  padding: 11px 20px;
+  cursor: pointer;
+  transition: transform .08s ease, background .15s ease, border-color .15s ease;
+}
+button:hover { background: rgba(44, 62, 98, 0.95); }
+button:active { transform: scale(0.97); }
+button.big {
+  background: linear-gradient(180deg, #3BD79A, #22A473);
+  border-color: transparent;
+  color: #04160F;
+  font-weight: 800;
+}
+button.big:hover { filter: brightness(1.08); background: linear-gradient(180deg, #3BD79A, #22A473); }
+button.off { opacity: .4; cursor: not-allowed; }
+button.off:active { transform: none; }
+
+/* ── 화면(전체 덮는 메뉴) ─────────────────────────────────── */
+.screen, .overlay {
+  position: fixed; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+  z-index: 20;
+  overflow-y: auto;
+}
+.screen { background: rgba(6, 9, 17, 0.82); backdrop-filter: blur(3px); }
+.overlay { background: rgba(6, 9, 17, 0.72); backdrop-filter: blur(4px); z-index: 30; }
+
+.panel, .overlay-inner {
+  width: 100%; max-width: 560px;
+  background: var(--panel);
+  border: 1px solid var(--panel-line);
+  border-radius: var(--r);
+  padding: 26px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, .55);
+  max-height: 100%;
+  overflow-y: auto;
+}
+.panel.wide, .overlay-inner { max-width: 880px; }
+.overlay-inner.narrow { max-width: 380px; text-align: center; }
+
+h1, h2, h3 { margin: 0 0 10px; }
+h2 { font-size: 22px; }
+h3 { font-size: 15px; margin-top: 18px; color: var(--muted); font-weight: 700; }
+.muted { color: var(--muted); margin: 0 0 14px; font-size: 14px; line-height: 1.6; }
+.muted.small { font-size: 12.5px; }
+
+.logo {
+  font-size: 54px; font-weight: 900; letter-spacing: -2px;
+  margin: 0 0 6px;
+  background: linear-gradient(120deg, #FF6FD8, #7EC8FF 45%, #35C98A);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.title-panel { text-align: center; max-width: 440px; }
+.tagline { color: var(--muted); margin: 0 0 26px; font-size: 14px; }
+.menu { display: flex; flex-direction: column; gap: 10px; }
+.menu button { padding: 14px; }
+.row-btns { display: flex; gap: 10px; margin-top: 18px; justify-content: flex-end; }
+.row-btns .big { flex: 1; max-width: 240px; }
+.crystals { float: right; font-size: 16px; color: var(--gold); }
+
+/* ── 캐릭터 선택 ──────────────────────────────────────────── */
+.champ-list { display: grid; gap: 10px; }
+.champ-card {
+  display: flex; gap: 14px; text-align: left; align-items: flex-start;
+  padding: 14px; border-radius: 12px;
+  background: rgba(20, 28, 48, 0.8);
+}
+.champ-card.on { background: rgba(38, 54, 88, 0.95); border-width: 2px; }
+.champ-badge {
+  width: 46px; height: 46px; flex: 0 0 46px;
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 900; font-size: 22px; color: #0A0E1A;
+}
+.champ-body { flex: 1; min-width: 0; }
+.champ-name { font-weight: 800; font-size: 17px; }
+.champ-title { color: var(--muted); font-size: 12px; margin-bottom: 6px; }
+.champ-blurb { font-size: 13px; line-height: 1.5; margin-bottom: 8px; }
+.champ-stats { display: flex; flex-wrap: wrap; gap: 8px; font-size: 12px; color: var(--muted); }
+.champ-stats .champ-role { color: var(--xp); }
+.champ-skill { margin-top: 5px; font-size: 12px; line-height: 1.5; color: var(--muted); }
+.champ-skill b { color: var(--accent); }
+.champ-skill b.k-p { color: #C7D0DA; }
+.champ-skill b.k-q { color: var(--xp); }
+.champ-skill b.k-e { color: #9BE86B; }
+.champ-skill b.k-r { color: var(--gold); }
+.champ-skill i.evo-need { color: #C46BFF; font-style: normal; font-weight: 700; }
+
+/* ── 지역(스테이지) 선택 ─────────────────────────────────── */
+.stage-list { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 14px; }
+.stage-card {
+  text-align: left; padding: 12px 14px; border-radius: 12px;
+  background: rgba(14, 20, 34, .9); border: 2px solid rgba(255, 255, 255, .12);
+  color: var(--text); cursor: pointer;
+}
+.stage-card.on { background: rgba(26, 38, 64, .95); }
+.stage-card.locked { opacity: .45; cursor: default; }
+.stage-name { font-size: 15px; font-weight: 800; margin-bottom: 3px; }
+.stage-desc { font-size: 11.5px; color: var(--muted); line-height: 1.45; }
+.stage-boss { font-size: 11.5px; color: #FF9AAE; font-weight: 700; margin-top: 5px; }
+
+/* 접근 카드로 열리는 진화 선택은 프리즘 테두리로 구분합니다. */
+#overlay-levelup.evo .overlay-inner { border-color: #C46BFF; box-shadow: 0 0 40px rgba(196, 107, 255, .35); }
+#overlay-levelup.evo .choice {
+  border-width: 3px !important;
+  background: linear-gradient(160deg, rgba(196, 107, 255, .14), rgba(126, 242, 216, .1));
+}
+
+.diff-list { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.diff-card { padding: 12px; border-radius: 12px; text-align: center; }
+.diff-card.on { border-color: var(--accent); background: rgba(53, 201, 138, .16); }
+.diff-name { font-weight: 800; margin-bottom: 4px; }
+.diff-desc { font-size: 11.5px; color: var(--muted); line-height: 1.4; }
+.diff-reward { font-size: 11.5px; color: var(--gold); margin-top: 6px; }
+
+/* ── 영구 강화 ────────────────────────────────────────────── */
+/* ── 업그레이드 구매 (원작 화면 배치) ─────────────────────── */
+.panel.shop-panel { max-width: 940px; padding: 20px 22px; }
+.shop-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.shop-head h2 { margin: 0; font-size: 20px; }
+.gold-pill {
+  display: flex; align-items: center; gap: 7px;
+  background: rgba(8, 12, 22, .85); border: 1px solid rgba(243, 201, 107, .45);
+  border-radius: 999px; padding: 5px 14px;
+  font-weight: 800; color: var(--gold); font-variant-numeric: tabular-nums;
+}
+.shop-body { display: grid; grid-template-columns: 1fr 232px; gap: 16px; align-items: start; }
+
+.up-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 9px; }
+.up-card {
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: 5px;
+  padding: 12px 6px 9px; border-radius: 12px;
+  background: rgba(18, 26, 45, .92);
+  border: 1px solid rgba(255, 255, 255, .10);
+  cursor: pointer; text-align: center;
+}
+.up-card:hover { background: rgba(28, 40, 68, .95); }
+.up-card.on { border-color: var(--gold); background: rgba(40, 34, 20, .92); }
+.up-card.locked { opacity: .38; cursor: default; }
+.up-card.locked:hover { background: rgba(18, 26, 45, .92); }
+.up-ico { font-size: 25px; line-height: 1; }
+.up-name { font-size: 12px; font-weight: 700; line-height: 1.25; }
+.up-cost {
+  display: flex; align-items: center; gap: 4px;
+  font-size: 11.5px; font-weight: 800; color: var(--gold);
+  font-variant-numeric: tabular-nums;
+}
+.up-cost.maxed { color: var(--accent); }
+/* 몇 단계까지 올렸는지 카드 위쪽에 얇은 눈금으로 */
+.pips { display: flex; gap: 3px; justify-content: center; }
+.pips i { width: 11px; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, .16); }
+.pips i.on { background: var(--gold); }
+
+.up-detail {
+  padding: 18px 16px; border-radius: 12px; min-height: 220px;
+  background: rgba(12, 18, 32, .92);
+  border: 1px solid rgba(255, 255, 255, .10);
+  display: flex; flex-direction: column; align-items: center; text-align: center; gap: 9px;
+}
+.up-detail .d-ico { font-size: 46px; line-height: 1; }
+.up-detail .d-name { font-size: 17px; font-weight: 800; }
+.up-detail .d-sub { font-size: 12.5px; color: var(--muted); line-height: 1.55; }
+.up-detail .d-value {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 15px; font-weight: 800; color: var(--accent);
+  background: rgba(53, 201, 138, .12); border: 1px solid rgba(53, 201, 138, .35);
+  border-radius: 8px; padding: 5px 12px;
+}
+.up-detail .d-lock { color: #FF9AAE; font-size: 12.5px; font-weight: 700; line-height: 1.55; }
+.up-detail .buy {
+  margin-top: auto; width: 100%; text-align: center;
+  color: var(--gold); font-weight: 800;
+}
+
+.shop-foot { display: flex; gap: 10px; align-items: center; justify-content: center; margin-top: 16px; }
+.shop-foot .ghost { width: 44px; padding: 11px 0; text-align: center; color: var(--muted); }
+button.big.blue {
+  flex: 1; max-width: 300px;
+  background: linear-gradient(180deg, #3E8FE8, #1F5FB8);
+  border-color: rgba(160, 205, 255, .5);
+  color: #EAF4FF; font-weight: 800; letter-spacing: .5px;
+}
+
+/* ── 도움말 ───────────────────────────────────────────────── */
+.help-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+.help-grid ul { margin: 6px 0 0; padding-left: 18px; }
+.help-grid li { font-size: 13px; line-height: 1.75; color: var(--muted); }
+.help-grid li b { color: var(--text); }
+/* 화면 읽는 법 — 실제 게임에서 쓰는 색과 맞춰 둡니다. */
+.legend-enemy { color: #FF1E3C !important; }
+.legend-mine { color: #7EC8FF !important; }
+.legend-xp { color: var(--xp) !important; }
+.legend-gold { color: var(--gold) !important; }
+
+/* ── 미션 ─────────────────────────────────────────────────── */
+.mission-list { display: grid; gap: 8px; }
+.mission-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 11px 14px; border-radius: 12px;
+  background: rgba(20, 28, 48, 0.8);
+  border: 1px solid var(--panel-line);
+}
+.mission-row.done { border-color: var(--accent); background: rgba(53, 201, 138, .1); }
+.mission-check {
+  width: 26px; height: 26px; flex: 0 0 26px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(255, 255, 255, .08); font-weight: 800; color: var(--muted);
+}
+.mission-row.done .mission-check { background: var(--accent); color: #04160F; }
+.mission-info { flex: 1; min-width: 0; }
+.mission-name { font-weight: 700; font-size: 15px; }
+.mission-desc { font-size: 12.5px; color: var(--muted); }
+.mission-right { text-align: right; }
+.mission-reward { font-size: 12.5px; color: var(--gold); font-weight: 700; }
+.mission-progress { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+.unlocks { margin-top: 10px; display: grid; gap: 6px; }
+.unlock-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px; border-radius: 10px; font-size: 13px;
+  background: rgba(243, 201, 107, .14); color: var(--gold);
+}
+.unlock-icon { font-size: 15px; }
+
+/* 잠긴 캐릭터 카드 */
+.champ-card.locked {
+  display: flex; gap: 14px; align-items: flex-start;
+  padding: 14px; border-radius: 12px;
+  background: rgba(14, 19, 32, 0.7);
+  border: 1px dashed var(--panel-line);
+  opacity: .72;
+}
+.champ-badge.lock { background: rgba(255, 255, 255, .08); font-size: 20px; }
+
+/* ── 선택 카드(레벨업·상점) ───────────────────────────────── */
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin: 16px 0; }
+.choice {
+  position: relative; text-align: left;
+  padding: 18px 16px 16px;
+  border-radius: 14px; border: 2px solid var(--panel-line);
+  background: rgba(18, 26, 44, 0.95);
+  display: flex; flex-direction: column; gap: 4px;
+  min-height: 176px;
+}
+.choice:hover { background: rgba(32, 46, 76, 0.98); transform: translateY(-2px); }
+/* 챔피언 스킬 강화가 이 게임의 중심이라 가장 눈에 띄게 둡니다. */
+.choice.k-champ { box-shadow: 0 0 22px rgba(111, 211, 255, .28); }
+.choice.k-evo { box-shadow: 0 0 26px rgba(243, 201, 107, .45); }
+.choice-note { font-size: 11.5px; color: var(--gold); margin-top: 4px; }
+.choice-tag {
+  position: absolute; top: -9px; left: 14px;
+  font-size: 10.5px; font-weight: 800; color: #0A0E1A;
+  padding: 2px 8px; border-radius: 6px;
+}
+.choice-icon { font-size: 30px; line-height: 1; margin-bottom: 4px; }
+.choice-name { font-weight: 800; font-size: 16px; }
+.choice-sub { font-size: 11.5px; color: var(--muted); }
+.choice-desc { font-size: 12.5px; color: #C9D4E6; line-height: 1.5; margin-top: 4px; flex: 1; }
+.choice-price { margin-top: 8px; font-weight: 800; color: var(--gold); font-size: 14px; }
+.choice.sold {
+  display: flex; align-items: center; justify-content: center;
+  opacity: .35; border-style: dashed;
+}
+.sold-label { font-size: 13px; color: var(--muted); }
+.reroll { display: block; margin: 0 auto; }
+
+.services { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.service { text-align: left; padding: 12px 14px; border-radius: 12px; }
+.service-name { font-weight: 700; }
+.service-desc { font-size: 12px; color: var(--muted); margin: 2px 0 6px; }
+.service-price { color: var(--gold); font-weight: 700; font-size: 13px; }
+
+/* ── 결과 ─────────────────────────────────────────────────── */
+#result-title.win { color: var(--accent); }
+#result-title.lose { color: var(--hp); }
+.rstats { display: grid; gap: 6px; margin: 14px 0; }
+.rrow { display: flex; justify-content: space-between; font-size: 14px; padding: 7px 10px; background: rgba(20, 28, 48, .7); border-radius: 8px; }
+.rk { color: var(--muted); }
+.rv { font-weight: 700; }
+.reward { text-align: center; padding: 12px; border-radius: 10px; background: rgba(243, 201, 107, .12); color: var(--gold); font-size: 14px; }
+.reward b { font-size: 18px; margin-left: 6px; }
+.build { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+.bchip { font-size: 11.5px; padding: 4px 9px; border-radius: 999px; border: 1px solid; }
+
+/* ── HUD ──────────────────────────────────────────────────── */
+#hud { position: fixed; inset: 0; pointer-events: none; z-index: 10; }
+.hud-top {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  padding: 14px 16px; gap: 14px;
+}
+.hud-left { width: 140px; }
+
+.bar {
+  position: relative; height: 20px; border-radius: 6px;
+  background: rgba(8, 12, 22, .82);
+  border: 1px solid rgba(255, 255, 255, .12);
+  overflow: hidden;
+}
+.bar .fill { position: absolute; inset: 0 auto 0 0; width: 0; transition: width .12s linear; }
+.bar.hp .fill { background: linear-gradient(90deg, #FF5C7A, #FF8B6B); }
+.bar.hp .fill.shield { background: rgba(111, 211, 255, .75); }
+.bar.xp { height: 11px; }
+.bar.xp .fill { background: linear-gradient(90deg, #6FD3FF, #7EC8FF); }
+.bar-text {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; text-shadow: 0 1px 3px rgba(0, 0, 0, .9);
+}
+.bar.xp .bar-text { font-size: 9.5px; }
+
+/* ── 하단 중앙 플레이어 패널 (원작 배치) ──────────────────── */
+.hud-player {
+  position: absolute; left: 50%; bottom: 14px;
+  transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+}
+.slotbars { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.slotbar {
+  display: flex; gap: 4px; justify-content: center;
+  padding: 4px 6px; border-radius: 10px;
+  background: rgba(8, 12, 22, .72);
+  border: 1px solid rgba(255, 255, 255, .10);
+}
+.slotbar:empty { display: none; }
+
+.pcard {
+  display: flex; align-items: center; gap: 9px;
+  padding: 6px 12px 6px 6px; border-radius: 12px;
+  background: rgba(8, 12, 22, .86);
+  border: 1px solid rgba(255, 255, 255, .14);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, .5);
+}
+/* 초상화 — 모델 스크린샷이 들어오기 전까지는 챔피언 색 + 이름 첫 글자입니다. */
+.portrait {
+  position: relative; width: 46px; height: 46px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; font-weight: 900; color: #08101C;
+  background: var(--accent);
+  border: 2px solid rgba(255, 255, 255, .28);
+}
+.portrait b {
+  position: absolute; right: -5px; bottom: -5px;
+  min-width: 19px; height: 19px; padding: 0 4px;
+  border-radius: 6px; background: #0A0E1A; color: var(--gold);
+  border: 1px solid var(--gold);
+  font-size: 11px; font-weight: 800;
+  display: flex; align-items: center; justify-content: center;
+}
+/* 오른쪽 아래의 E/R 버튼·미니맵과 겹치지 않을 만큼만 넓힙니다. */
+.pbars { display: flex; flex-direction: column; gap: 3px; width: clamp(150px, 26vw, 300px); }
+
+.wslot {
+  position: relative; width: 34px; height: 34px; border-radius: 9px;
+  background: rgba(8, 12, 22, .8); border: 1px solid rgba(255, 255, 255, .14);
+  display: flex; align-items: center; justify-content: center;
+}
+.wslot.maxed { border-color: var(--gold); box-shadow: 0 0 10px rgba(243, 201, 107, .4); }
+.wslot.champ { border-color: var(--accent); }
+/* 진화 조건을 채운 무기는 반짝여서 알려줍니다. */
+.wslot.ready { border-color: var(--gold); animation: evoPulse 1s ease-in-out infinite; }
+/* 5단계는 됐지만 조건(지속 효과·접근 카드)이 모자란 무기 */
+.wslot.near { border-color: rgba(243, 201, 107, .45); }
+@keyframes evoPulse {
+  0%, 100% { box-shadow: 0 0 4px rgba(243, 201, 107, .5); }
+  50% { box-shadow: 0 0 16px rgba(243, 201, 107, 1); }
+}
+.wicon { font-size: 17px; }
+.wlv {
+  position: absolute; right: -3px; bottom: -4px;
+  font-size: 9px; font-weight: 800; color: #0A0E1A; background: var(--text);
+  border-radius: 5px; padding: 0 3px; min-width: 12px; text-align: center;
+}
+.slotbar.perks .aslot {
+  position: relative; width: 26px; height: 26px; border-radius: 7px;
+  background: rgba(8, 12, 22, .8); border: 1px solid;
+  display: flex; align-items: center; justify-content: center; font-size: 13px;
+}
+.aslot b { position: absolute; right: -2px; bottom: -4px; font-size: 9px; color: var(--gold); }
+
+.hud-center { flex: 1; text-align: center; }
+#timer {
+  font-size: 30px; font-weight: 900; letter-spacing: 1px;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, .9);
+  font-variant-numeric: tabular-nums;
+}
+#boss-bar { margin: 6px auto 0; width: min(440px, 80vw); }
+#boss-name { font-size: 12px; font-weight: 700; color: #FF9AAE; margin-bottom: 3px; }
+.bar.boss { height: 13px; }
+.bar.boss .fill { background: linear-gradient(90deg, #FF5C7A, #C08BFF); transition: width .2s linear; }
+
+.hud-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.hud-right .stat {
+  display: flex; align-items: center; gap: 6px;
+  background: rgba(8, 12, 22, .8); border: 1px solid rgba(255, 255, 255, .12);
+  border-radius: 8px; padding: 4px 10px; font-size: 14px; font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.hud-right .stat b { color: var(--gold); }
+.hud-right .stat:nth-child(2) b { color: #FF9AAE; }
+/* 접근 카드 — 쓸 수 있는 상태면 반짝입니다. */
+.hud-right .stat.card b { color: #C46BFF; }
+.hud-right .stat.card.ready { border-color: #C46BFF; animation: evoPulse 1s ease-in-out infinite; }
+.aim {
+  font-size: 11px; font-weight: 700; color: var(--muted);
+  background: rgba(8, 12, 22, .8); border: 1px solid rgba(255, 255, 255, .12);
+  border-radius: 8px; padding: 3px 9px; pointer-events: auto; cursor: pointer;
+}
+.aim.manual { color: #0A0E1A; background: var(--gold); border-color: var(--gold); }
+
+.hud-bottom {
+  position: absolute; right: 18px; bottom: 18px;
+  display: flex; gap: 12px; align-items: flex-end;
+}
+.touch-btn { pointer-events: auto; }
+.touch-btn.small { padding: 4px 10px; font-size: 13px; }
+.ability {
+  position: relative; overflow: hidden;
+  width: 92px; height: 92px; border-radius: 50%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  background: rgba(16, 24, 42, .92);
+  border: 2px solid var(--accent);
+  padding: 0;
+}
+.ability.ult { border-color: var(--gold); }
+.ability .cd {
+  position: absolute; left: 0; bottom: 0; width: 100%; height: 0;
+  background: rgba(0, 0, 0, .62); pointer-events: none;
+}
+.ability .key { font-size: 9px; color: var(--muted); letter-spacing: .5px; }
+.ability .label { font-size: 12px; font-weight: 800; line-height: 1.15; text-align: center; padding: 0 6px; }
+.ability.cooling .label, .ability.cooling .key { opacity: .2; }
+.ability .num {
+  position: absolute; font-size: 24px; font-weight: 900;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, .9);
+}
+
+/* 터치 조이스틱 */
+#stick {
+  position: fixed; width: 116px; height: 116px; margin: -58px 0 0 -58px;
+  border-radius: 50%; border: 2px solid rgba(255, 255, 255, .2);
+  background: rgba(255, 255, 255, .06); z-index: 15; pointer-events: none;
+}
+#stick-knob {
+  position: absolute; left: 50%; top: 50%;
+  width: 48px; height: 48px; border-radius: 50%;
+  background: rgba(255, 255, 255, .28);
+  transform: translate(-50%, -50%);
+}
+
+/* ── 좁은 화면 ────────────────────────────────────────────── */
+@media (max-width: 720px) {
+  .panel, .overlay-inner { padding: 18px; }
+  .logo { font-size: 42px; }
+  .help-grid { grid-template-columns: 1fr; gap: 10px; }
+  .diff-list { grid-template-columns: 1fr; }
+  .cards { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .choice { min-height: 150px; padding: 14px 12px 12px; }
+  .choice-icon { font-size: 24px; }
+  .choice-name { font-size: 14px; }
+  .choice-desc { font-size: 11.5px; }
+  .services { grid-template-columns: 1fr; }
+  #timer { font-size: 22px; }
+  .hud-left-col { width: 52vw; }
+  .ability { width: 68px; height: 68px; }
+  .champ-card { padding: 11px; }
+  .champ-blurb { display: none; }
+  .stage-list { grid-template-columns: 1fr; }
+  .shop-body { grid-template-columns: 1fr; }
+  .up-grid { grid-template-columns: repeat(3, 1fr); }
+  /* 좁은 화면에서는 플레이어 패널을 왼쪽으로 붙여 버튼과의 충돌을 피합니다. */
+  .hud-player { left: 12px; transform: none; align-items: flex-start; }
+  .slotbars { align-items: flex-start; }
+  .portrait { width: 38px; height: 38px; font-size: 17px; }
+}
+@media (max-width: 420px) {
+  .cards { grid-template-columns: 1fr; }
+  .choice { min-height: 0; }
+}

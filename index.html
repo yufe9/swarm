@@ -1,0 +1,328 @@
+﻿<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1">
+<meta name="theme-color" content="#0A0E1A">
+<title>집중포화</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- #gl = 3D(WebGL) 씬, #cv = 그 위의 2D 레이어.
+     주소에 ?3d 를 붙이면 3D 렌더러가 켜지고, 없으면 #cv 하나로 2D 로 돕니다. -->
+<canvas id="gl"></canvas>
+<canvas id="cv"></canvas>
+
+<!-- ── 전투 중 HUD ───────────────────────────────────────────── -->
+<div id="hud" hidden>
+  <div class="hud-top">
+    <div class="hud-left"></div>
+
+    <div class="hud-center">
+      <div id="timer">00:00</div>
+      <div id="boss-bar" hidden>
+        <div id="boss-name">보스</div>
+        <div class="bar boss"><div id="boss-fill" class="fill"></div></div>
+      </div>
+    </div>
+
+    <div class="hud-right">
+      <div class="stat gold"><span>💰</span><b id="gold-text">0</b></div>
+      <div class="stat kill"><span>☠</span><b id="kill-text">0</b></div>
+      <div class="stat card" id="card-stat" title="접근 카드 — 무기 진화에 씁니다"><span>🃏</span><b id="card-text">0</b></div>
+      <div id="aim-mode" class="aim">자동 조준 (C)</div>
+      <button id="pause-btn" class="touch-btn small" type="button">Ⅱ</button>
+    </div>
+  </div>
+
+  <!-- 하단 중앙 플레이어 패널 — 원작 집중포화와 같은 배치입니다.
+       무기·지속 효과 아이콘 줄 아래에 초상화 + 체력/경험치 바가 붙습니다. -->
+  <div class="hud-player">
+    <div class="slotbars">
+      <div id="weapon-slots" class="slotbar"></div>
+      <div id="aug-slots" class="slotbar perks"></div>
+    </div>
+    <div class="pcard">
+      <div class="portrait" id="p-portrait">
+        <span id="p-initial">징</span>
+        <b id="p-level">1</b>
+      </div>
+      <div class="pbars">
+        <div class="bar hp">
+          <div id="hp-fill" class="fill"></div>
+          <div id="shield-fill" class="fill shield"></div>
+          <span id="hp-text" class="bar-text">0 / 0</span>
+        </div>
+        <div class="bar xp">
+          <div id="xp-fill" class="fill"></div>
+          <span id="lv-text" class="bar-text">Lv.1</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="hud-bottom">
+    <button id="skill-btn" class="touch-btn ability" type="button">
+      <div id="skill-cd" class="cd"></div>
+      <span class="key">E</span>
+      <span id="skill-name" class="label">스킬</span>
+      <span id="skill-num" class="num"></span>
+    </button>
+    <button id="ult-btn" class="touch-btn ability ult" type="button">
+      <div id="ult-cd" class="cd"></div>
+      <span class="key">R</span>
+      <span id="ult-name" class="label">궁극기</span>
+      <span id="ult-num" class="num"></span>
+    </button>
+  </div>
+</div>
+
+<!-- 터치 조이스틱 -->
+<div id="stick" hidden><div id="stick-knob"></div></div>
+
+<!-- ── 타이틀 ────────────────────────────────────────────────── -->
+<section id="screen-title" class="screen">
+  <div class="panel title-panel">
+    <h1 class="logo">집중포화</h1>
+    <p class="tagline">끝없이 몰려드는 군체를 15분간 버텨내십시오.</p>
+    <div class="menu">
+      <button id="btn-play" class="big" type="button">전투 시작</button>
+      <button id="btn-meta" type="button">영구 강화</button>
+      <button id="btn-missions" type="button">미션 · 해금</button>
+      <button id="btn-help" type="button">조작법 · 규칙</button>
+      <button id="btn-mode" type="button">3D 모드로 전환</button>
+    </div>
+  </div>
+</section>
+
+<!-- ── 캐릭터 선택 ───────────────────────────────────────────── -->
+<section id="screen-select" class="screen" hidden>
+  <div class="panel wide">
+    <h2>출격 준비</h2>
+    <h3>지역</h3>
+    <div id="stage-list" class="stage-list"></div>
+    <h3>챔피언</h3>
+    <div id="champ-list" class="champ-list"></div>
+    <h3>난이도</h3>
+    <div id="diff-list" class="diff-list"></div>
+    <div class="row-btns">
+      <button id="btn-select-back" type="button">뒤로</button>
+      <button id="btn-start" class="big" type="button">출격</button>
+    </div>
+  </div>
+</section>
+
+<!-- ── 영구 강화 ─────────────────────────────────────────────── -->
+<!-- 원작의 '업그레이드 구매' 화면 배치를 그대로 따릅니다:
+     왼쪽에 능력치 카드 격자, 오른쪽에 선택한 항목의 상세, 아래에 파란 시작 버튼. -->
+<section id="screen-meta" class="screen" hidden>
+  <div class="panel shop-panel">
+    <div class="shop-head">
+      <h2>업그레이드 구매</h2>
+      <div class="gold-pill"><span>💎</span><b id="meta-crystals">0</b></div>
+    </div>
+
+    <div class="shop-body">
+      <div id="meta-list" class="up-grid"></div>
+      <aside class="up-detail" id="up-detail"></aside>
+    </div>
+
+    <p class="muted small" id="meta-record"></p>
+
+    <div class="shop-foot">
+      <button id="btn-meta-back" class="ghost" type="button">✕</button>
+      <button id="btn-meta-play" class="big blue" type="button">대전 찾기</button>
+    </div>
+  </div>
+</section>
+
+<!-- ── 도움말 ────────────────────────────────────────────────── -->
+<section id="screen-help" class="screen" hidden>
+  <div class="panel wide">
+    <h2>조작법 · 규칙</h2>
+    <div class="help-grid">
+      <div>
+        <h3>조작</h3>
+        <ul>
+          <li><b>WASD / 방향키</b> — 이동 (모바일은 화면을 끌어 조작)</li>
+          <li><b>E</b> — 기본 스킬 (챔피언마다 다릅니다. 충전식도 있습니다)</li>
+          <li><b>R</b> — 궁극기</li>
+          <li><b>C</b> — <b>자동 조준 / 수동 조준 전환.</b> 수동이면 마우스 커서 방향으로 쏩니다.</li>
+          <li><b>Esc / P</b> — 일시정지</li>
+        </ul>
+        <h3>전투</h3>
+        <ul>
+          <li>무기는 <b>자동으로</b> 공격합니다. 이동과 스킬에 집중하세요.</li>
+          <li>기본 공격도 <b>무기 판정</b>이라 <b>스킬 가속이 곧 공격 속도</b>입니다.</li>
+          <li>적을 처치하면 <b>경험치 구슬</b>과 <b>골드</b>가 떨어집니다.</li>
+          <li>레벨업마다 <b>3개 중 1개</b>를 고릅니다.</li>
+          <li>맵의 <b>바위와 기둥은 길을 막습니다.</b> 적도 못 넘어오니 지형을 끼고 도세요.</li>
+          <li><b>나무 상자</b>는 부수면 골드와 회복 물약이 나옵니다.</li>
+        </ul>
+        <h3>성장 (가장 중요)</h3>
+        <ul>
+          <li><b>챔피언 스킬은 레벨이 없습니다.</b> 패시브·E·R은 판 내내 고정입니다.</li>
+          <li>성장은 <b>무기 5칸</b>과 <b>기본 지속 효과 6칸</b>으로만 이뤄집니다.</li>
+          <li>둘 다 <b>5단계</b>까지 올릴 수 있습니다. 챔피언 전용 무기가 5칸 중 1칸을 씁니다.</li>
+        </ul>
+        <h3>화면 읽는 법</h3>
+        <ul>
+          <li><b class="legend-enemy">붉고 회전하는 가시</b> — 적의 탄환. 무조건 피하세요.</li>
+          <li><b class="legend-mine">길쭉하고 흰 심이 박힌 탄</b> — 내 공격.</li>
+          <li><b class="legend-xp">바닥에 놓인 하늘색 보석</b> — 경험치. 밟으면 획득.</li>
+          <li><b class="legend-gold">노란 동전</b> — 골드.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>무기 진화 (핵심 기믹)</h3>
+        <ul>
+          <li>진화에는 <b>세 가지가 동시에</b> 필요합니다.</li>
+          <li>① 그 무기를 <b>5단계</b>까지 올리고</li>
+          <li>② 그 무기가 요구하는 <b>기본 지속 효과를 보유</b>하고 (1레벨이면 충분합니다)</li>
+          <li>③ <b>접근 카드(🃏)</b> 를 1장 씁니다.</li>
+          <li>접근 카드는 <b>정예병과 미니 보스</b>를 잡으면 확정으로 떨어집니다. 미니맵에 보라색으로 표시됩니다.</li>
+          <li>조건을 다 채우면 HUD의 무기 칸이 <b>노랗게 반짝이고</b>, 카드를 주우면 진화 선택창이 뜹니다.</li>
+          <li>카드는 <b>모아둘 수 있습니다.</b> 급하지 않으면 아껴 두세요.</li>
+        </ul>
+        <h3>골드와 결정</h3>
+        <ul>
+          <li>맵에 주기적으로 <b>보급 상점</b>이 열립니다. 다가가면 자동으로 입장.</li>
+          <li>상점에서는 <b>접근 카드도 살 수 있습니다.</b></li>
+          <li>레벨업 화면에서 <b>💰40</b> 으로 선택지를 다시 뽑을 수 있습니다.</li>
+          <li>판이 끝나면 모은 골드가 <b>결정(💎)</b> 으로 환산돼 영구 강화에 쓰입니다.</li>
+          <li><b>미션</b>을 달성하면 새 챔피언과 무기가 해금됩니다.</li>
+        </ul>
+        <h3>승리 조건</h3>
+        <ul>
+          <li>판 내내 <b>정예병과 미니 보스</b>가 등장합니다 — 접근 카드의 공급원입니다.</li>
+          <li><b>15분</b>에 그 지역의 <b>최종 보스</b>가 등장합니다. 잡아야 승리합니다.</li>
+          <li>지역을 클리어하면 <b>다음 지역</b>이 열립니다.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="row-btns">
+      <button id="btn-help-back" type="button">뒤로</button>
+    </div>
+  </div>
+</section>
+
+<!-- ── 미션 ──────────────────────────────────────────────────── -->
+<section id="screen-missions" class="screen" hidden>
+  <div class="panel wide">
+    <h2>미션 · 해금</h2>
+    <p class="muted small">조건을 채우면 새 챔피언과 무기가 열립니다. 판이 끝날 때 자동으로 확인합니다.</p>
+    <div id="mission-list" class="mission-list"></div>
+    <div class="row-btns">
+      <button id="btn-missions-back" type="button">뒤로</button>
+    </div>
+  </div>
+</section>
+
+<!-- ── 레벨업 ────────────────────────────────────────────────── -->
+<section id="overlay-levelup" class="overlay" hidden>
+  <div class="overlay-inner">
+    <h2 id="lv-title">레벨 업!</h2>
+    <p id="lv-sub" class="muted">증강을 하나 고르세요</p>
+    <div id="lv-cards" class="cards"></div>
+    <button id="btn-lv-reroll" class="reroll" type="button">다시 뽑기</button>
+  </div>
+</section>
+
+<!-- ── 상점 ──────────────────────────────────────────────────── -->
+<section id="overlay-shop" class="overlay" hidden>
+  <div class="overlay-inner">
+    <h2>보급 상점 <span class="crystals">💰 <b id="shop-gold">0</b></span></h2>
+    <div id="shop-cards" class="cards"></div>
+    <div id="shop-services" class="services"></div>
+    <div class="row-btns">
+      <button id="btn-shop-reroll" type="button">상품 교체</button>
+      <button id="btn-shop-close" class="big" type="button">전투로 복귀</button>
+    </div>
+  </div>
+</section>
+
+<!-- ── 일시정지 ──────────────────────────────────────────────── -->
+<section id="overlay-pause" class="overlay" hidden>
+  <div class="overlay-inner narrow">
+    <h2>일시정지</h2>
+    <div class="menu">
+      <button id="btn-resume" class="big" type="button">계속하기</button>
+      <button id="btn-quit" type="button">포기하고 나가기</button>
+    </div>
+  </div>
+</section>
+
+<!-- ── 결과 ──────────────────────────────────────────────────── -->
+<section id="screen-result" class="screen" hidden>
+  <div class="panel">
+    <h2 id="result-title">전멸</h2>
+    <p id="result-sub" class="muted"></p>
+    <div id="result-stats" class="rstats"></div>
+    <div class="reward">획득한 결정 <b id="result-crystals">💎 +0</b></div>
+    <div id="result-missions" class="unlocks" hidden></div>
+    <div id="result-build" class="build"></div>
+    <div class="row-btns">
+      <button id="btn-home" type="button">메인으로</button>
+      <button id="btn-again" class="big" type="button">다시 도전</button>
+    </div>
+  </div>
+</section>
+
+<script src="js/util.js"></script>
+<script src="js/data.models.js"></script>
+<script src="js/data.perks.js"></script>
+<script src="js/data.champions.js"></script>
+<script src="js/data.weapons.js"></script>
+<script src="js/data.missions.js"></script>
+<script src="js/data.enemies.js"></script>
+<script src="js/data.stages.js"></script>
+<script src="js/game.js"></script>
+<script src="js/render.js"></script>
+<script src="js/asset-manager.js"></script>
+<script src="js/render3d.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/main.js"></script>
+
+<!-- ── 3D 부팅 ───────────────────────────────────────────────────
+     Three.js 는 ES 모듈이고 나머지는 클래식 스크립트라, 여기서 import 한 뒤
+     Render3D.init() 에 넘겨 줍니다. 모듈은 항상 defer 라 main.js 보다 늦게 도므로
+     그때까지는 2D 로 그려지다가 준비되는 즉시 3D 로 넘어갑니다. -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three/three.module.js",
+    "three/addons/": "./vendor/three/jsm/"
+  }
+}
+</script>
+<script type="module">
+  const use3D = new URLSearchParams(location.search).has('3d');
+  const btn = document.getElementById('btn-mode');
+  btn.textContent = use3D ? '2D 모드로 전환' : '3D 모드로 전환';
+  btn.addEventListener('click', () => {
+    location.search = use3D ? '' : '?3d';
+  });
+
+  if (use3D) {
+    try {
+      const THREE = await import('three');
+      const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
+      const { DRACOLoader } = await import('three/addons/loaders/DRACOLoader.js');
+      const SkeletonUtils = await import('three/addons/utils/SkeletonUtils.js');
+
+      // 에셋 매니저를 먼저 세웁니다. 카툰 그라디언트는 Render3D.init 이 만들어 넘겨 줍니다.
+      // SkeletonUtils.clone 은 SkinnedMesh 복제본의 뼈대가 꼬이지 않게 하는 필수품입니다.
+      AssetManager.init(THREE, GLTFLoader, DRACOLoader, SkeletonUtils, null);
+      await Render3D.init(document.getElementById('gl'), THREE, GLTFLoader);
+
+      window.ACTIVE_RENDERER = Render3D;
+      window.__swarmResize();          // 3D 캔버스에 현재 화면 크기를 알려 줍니다
+      console.log('[집중포화] 3D 렌더러 활성화 — three r' + THREE.REVISION);
+    } catch (err) {
+      console.error('[집중포화] 3D 초기화 실패, 2D 로 계속합니다:', err);
+    }
+  }
+</script>
+</body>
+</html>
